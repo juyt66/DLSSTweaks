@@ -6,6 +6,38 @@
 #include <nvsdk_ngx_defs.h>
 #include <nvsdk_ngx_params.h>
 
+// ===== FSR SUPPORT ENUMS AND STRUCTURES =====
+
+// Super Resolution Technology Selection
+enum class SuperResolutionMode {
+	DLSS = 0,
+	FSR = 1,
+	NONE = 2
+};
+
+// FSR Quality Presets matching common upscaling ratios
+enum class FSRQualityMode {
+	ULTRA_PERFORMANCE = 0,    // 0.5x upscaling
+	PERFORMANCE = 1,          // 0.58x upscaling  
+	BALANCED = 2,             // 0.67x upscaling
+	QUALITY = 3,              // 0.77x upscaling
+	NATIVE = 4                // 1.0x (no upscaling - DLAA equivalent)
+};
+
+// FSR-specific Settings Structure
+struct FSRSettings {
+	bool enableFSR = false;
+	FSRQualityMode qualityMode = FSRQualityMode::QUALITY;
+	float customScalingRatio = 0.77f;
+	bool enableSharpening = true;
+	float sharpeningStrength = 0.5f;
+	bool enableAutoExposure = true;
+	bool enableMotionVectors = true;
+	bool enableReactiveScale = false;
+};
+// ===== END FSR SUPPORT =====
+
+
 // Certain settings which aren't currently included in DLSS SDK, but do seem checked by DLSS 3.1+ DLL files.
 #ifndef NVSDK_NGX_Parameter_Disable_Watermark
 #define NVSDK_NGX_Parameter_Disable_Watermark "Disable.Watermark"
@@ -93,6 +125,11 @@ struct UserSettings
 	std::unordered_map<std::string, std::filesystem::path> dllPathOverrides;
 	bool overrideQualityLevels = false;
 
+	// FSR Support Settings
+	SuperResolutionMode srMode = SuperResolutionMode::DLSS;
+	FSRSettings fsrSettings;
+	bool fsrDebugLogging = false;
+
 	int resolutionOffset = 0; // user-defined offset to apply to DLAA / full-res rendering (some titles don't like DLAA rendering at full res, so small offset is needed)
 	bool dynamicResolutionOverride = true;
 	int dynamicResolutionMinOffset = -1;
@@ -172,4 +209,14 @@ struct HookOrigFn
 		uintptr_t dest = dest_proc ? uintptr_t(dest_proc) : hook.trampoline().address();
 		return ((RetT(*)(Args...))dest)(args...);
 	}
+};
+
+
+// FSR Support Module
+namespace fsr_support {
+	void init(HMODULE fsr_module = nullptr);
+	void hook_params(NVSDK_NGX_Parameter* params);
+	void settings_changed();
+	float dlss_quality_to_fsr_scale(unsigned int dlss_preset);
+	float get_current_fsr_scale();
 };
